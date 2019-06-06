@@ -3,6 +3,7 @@ from database import connector
 from model import entities
 import json
 import time
+from sqlalchemy import or_, and_
 
 db = connector.Manager()
 engine = db.createEngine()
@@ -17,12 +18,13 @@ def index():
 def static_content(content):
     return render_template(content)
 
-@app.route('/chat/<id>')
-def chat(id):
+@app.route('/chat/<id>/<id2>')
+def chat(id,id2):
     session = db.getSession(engine)
     users = session.query(entities.User).all()
-    messages = session.query(entities.Message).all()
-    return render_template('chat.html', users=users, messages=messages, id=int(id))
+    to = session.query(entities.User).filter(entities.User.id== id2).first()
+    messages = session.query(entities.Message).filter(or_(and_(entities.Message.user_from_id==id,entities.Message.user_to_id==id2),and_(entities.Message.user_from_id==id2,entities.Message.user_to_id==id))).all()
+    return render_template('chat.html', users=users, messages=messages, id=int(id),id2=int(id2),to=to)
 
 
 @app.route('/users', methods = ['GET'])
@@ -162,6 +164,22 @@ def authenticate():
     except Exception:
         message = {'message': 'Unauthorized'}
         return Response(message, status=401, mimetype='application/json')
+
+
+@app.route('/send_msg', methods=['POST'])
+def send_msg():
+    message = json.loads(request.data)
+    print(message)
+    message1 = entities.Message(
+        content=message['content'],
+        user_from_id=message['fid'],
+        user_to_id=message['tid']
+    )
+    db_session = db.getSession(engine)
+    db_session.add(message1)
+    db_session.commit()
+    return 'Created Message'
+
 
 
 if __name__ == '__main__':
